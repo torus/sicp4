@@ -527,6 +527,8 @@
 
 (test-environment-procedures)
 
+(test-section "Ex 4.13")
+
 ;; Ex 4.13
 (define (unbound! var env)
   (let ((frame (first-frame env)))
@@ -541,9 +543,6 @@
   (test* "unbound!" (test-error) (lookup-variable-value 'c env2))
   (test* "unbound! - unbound" (test-error) (unbound! 'a env2))
   )
-
-(test-end)
-
 
 ;; 4.1.4
 
@@ -594,6 +593,8 @@
 (define (announce-output string)
   (newline) (display string) (newline))
 
+(test-section "4.1.4")
+
 (let ((the-global-environment (setup-environment)))
   (eval '(define a 1) the-global-environment)
   (eval '(define (append x y)
@@ -602,7 +603,7 @@
                (cons (car x)
                      (append (cdr x) y))))
         the-global-environment)
-  (eval '(append '(a b c) '(d e f)) the-global-environment)
+  (test* "eval" '(a b c d e f) (eval '(append '(a b c) '(d e f)) the-global-environment))
   )
 
 (define (user-print object)
@@ -623,3 +624,20 @@
         (user-print output)))
     (driver-loop))
   (driver-loop))
+
+(test-section "Ex 4.14")
+
+(let ((the-global-environment (setup-environment)))
+  (eval '(define (map proc lis)
+           (if (null? lis)
+               '()
+               (cons (proc (car lis))
+                     (map proc (cdr lis)))))
+        the-global-environment)
+  (test* "eval" '((a) (b) (c))
+         (eval '(map (lambda (x) (cons x '())) '(a b c))
+               the-global-environment))
+  )
+
+
+(test-end)
