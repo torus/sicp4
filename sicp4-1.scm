@@ -3,7 +3,6 @@
 ;; 4.1.1
 
 (define (eval exp env)
-  #?=exp
   (cond ((self-evaluating? exp) exp)
         ((variable? exp) (lookup-variable-value exp env))
         ((quoted? exp) (text-of-quotation exp))
@@ -11,7 +10,7 @@
         ((definition? exp) (eval-definition exp env))
         ((if? exp) (eval-if exp env))
         ((lambda? exp)
-         (make-prodecure (lambda-parameters exp)
+         (make-procedure (lambda-parameters exp)
                          (lambda-body exp)
                          env))
         ((begin? exp)
@@ -26,7 +25,7 @@
 (define apply-in-underlying-scheme apply) ;; 4.1.4
 
 (define (apply procedure arguments)
-  (cond ((primitive-prodecure? procedure)
+  (cond ((primitive-procedure? procedure)
          (apply-primitive-procedure procedure arguments))
         ((compound-procedure? procedure)
          (eval-sequence
@@ -120,7 +119,7 @@
 
 (define (if-predicate exp) (cadr exp))
 
-(define (if-consequent ext) (caddr exp))
+(define (if-consequent exp) (caddr exp))
 
 (define (if-alternative exp)
   (if (not (null? (cdddr exp)))
@@ -155,7 +154,7 @@
 
 (define (no-operands? ops) (null? ops))
 
-(define (first-operand ops) (cdr ops))
+(define (first-operand ops) (car ops))
 
 (define (rest-operands ops) (cdr ops))
 
@@ -196,10 +195,12 @@
 
 ;; Ex 4.3
 (define *method-table* '())
+(define (method-existing? tag)
+  (not (eq? #f (assq tag *method-table*))))
 (define (eval exp env)
   (cond ((self-evaluating? exp) exp)
         ((variable? exp) (lookup-variable-value exp env))
-        ((and (pair? exp) (symbol? (car exp)))
+        ((and (pair? exp) (symbol? (car exp)) (method-existing? (car exp)))
          ((get (car exp)) exp env))
         ((application? exp)
          (apply (eval (operator exp) env)
@@ -210,14 +211,14 @@
 (define (put! tag proc)
   (set! *method-table* (acons tag proc *method-table*)))
 (define (get tag)
-  (assq tag *method-table*))
+  (cdr (assq tag *method-table*)))
 
 (put! 'quote (lambda (exp env) (text-of-quotation exp)))
 (put! 'set! eval-assignment)
 (put! 'define eval-definition)
 (put! 'if eval-if)
 (put! 'lambda (lambda (exp env)
-                (make-prodecure (lambda-parameters exp)
+                (make-procedure (lambda-parameters exp)
                                 (lambda-body exp)
                                 env)))
 (put! 'begin (lambda (exp env)
@@ -357,7 +358,7 @@
 
 ;; Procedure
 
-(define (make-prodecure parameters body env)
+(define (make-procedure parameters body env)
   (list 'procedure parameters body env))
 
 (define (compound-procedure? p)
@@ -568,6 +569,7 @@
         (list 'cons cons)
         (list 'null? null?)
         ;; ...
+        (list 'debug print)
         ))
 
 (define (primitive-procedure-name)
@@ -584,13 +586,7 @@
 (define input-prompt ";;; M-Eval input:")
 (define output-prompt ";;; M-Eval value:")
 
-(define (driver-loop)
-  (prompt-for-input input-prompt)
-  (let ((input (read)))
-    (let ((output (eval input the-global-environment)))
-      (announce-output output-prompt)
-      (user-print output)))
-  (driver-loop))
+
 
 (define (prompt-for-input string)
   (newline) (newline) (display string) (newline))
@@ -598,7 +594,32 @@
 (define (announce-output string)
   (newline) (display string) (newline))
 
-(define the-global-environment (setup-environment))
+(let ((the-global-environment (setup-environment)))
+  (eval '(define a 1) the-global-environment)
+  (eval '(define (append x y)
+           (if (null? x)
+               y
+               (cons (car x)
+                     (append (cdr x) y))))
+        the-global-environment)
+  (eval '(append '(a b c) '(d e f)) the-global-environment)
+  )
 
-;; (driver-loop)
-(eval '(define a 1) '())
+(define (user-print object)
+  (if (compound-procedure? object)
+      (display (list 'compound-procedure
+                     (procedure-parameters object)
+                     (procedure-body object)
+                     ))
+      (display object)))
+
+(define (start-driver-loop)
+  (define the-global-environment (setup-environment))
+  (define (driver-loop)
+    (prompt-for-input input-prompt)
+    (let ((input (read)))
+      (let ((output (eval input the-global-environment)))
+        (announce-output output-prompt)
+        (user-print output)))
+    (driver-loop))
+  (driver-loop))
